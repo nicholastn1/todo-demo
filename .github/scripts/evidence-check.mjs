@@ -9,7 +9,7 @@
  * payload file rather than interpolated into a shell command by the workflow.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
@@ -92,6 +92,67 @@ export function buildSummary(result) {
   ].join('\n')
 }
 
+/**
+ * Is the evidence already on disk for this branch? Used before a PR exists,
+ * so the create-pr skill can stop rather than open a PR that CI will bounce.
+ */
+export function localEvidence(dir) {
+  if (!existsSync(dir)) return { dir, video: false, screenshot: false }
+  const files = readdirSync(dir)
+  return {
+    dir,
+    video: files.some((f) => /\.(mp4|webm|mov)$/i.test(f)),
+    screenshot: files.some((f) => /\.png$/i.test(f)),
+  }
+}
+
+export function buildPreflight({ files, slug, evidence }) {
+  const required = touchesUi(files)
+  const missing = []
+  if (required && !evidence.video) missing.push('a video')
+  if (required && !evidence.screenshot) missing.push('a screenshot')
+
+  const lines = required
+    ? [
+        `Evidence IS required — ${files.filter((f) => UI_PATHS.some((p) => f.startsWith(p))).length} UI file(s) changed.`,
+        `Looked in: ${evidence.dir}`,
+        `  video:      ${evidence.video ? 'found' : 'MISSING'}`,
+        `  screenshot: ${evidence.screenshot ? 'found' : 'MISSING'}`,
+      ]
+    : [`Evidence not required — no changes under ${UI_PATHS.join(' or ')}.`]
+
+  if (missing.length) {
+    lines.push(
+      '',
+      `Run the playwright-evidence skill first; it writes to docs/evidence/${slug}/.`,
+      'Opening the PR now would just spend a failed CI round.',
+    )
+  }
+
+  return { required, missing, passed: missing.length === 0, report: lines.join('\n') }
+}
+
+/** Changed files against the base branch, including work not yet committed. */
+function localChangedFiles(base) {
+  const git = (args) => execFileSync('git', args, { encoding: 'utf8' })
+  const committed = git(['diff', '--name-only', `${base}...HEAD`])
+  const working = git(['status', '--porcelain']).replace(/^.{3}/gm, '')
+  return [...new Set([...committed.split('\n'), ...working.split('\n')].filter(Boolean))]
+}
+
+export function runPreflight(base = 'main') {
+  const slug = execFileSync('git', ['branch', '--show-current'], { encoding: 'utf8' })
+    .trim()
+    .replace(/\//g, '-')
+  const result = buildPreflight({
+    files: localChangedFiles(base),
+    slug,
+    evidence: localEvidence(`docs/evidence/${slug}`),
+  })
+  process.stdout.write(`${result.report}\n`)
+  if (!result.passed) process.exitCode = 1
+}
+
 function changedFiles(prNumber) {
   const out = execFileSync(
     'gh',
@@ -118,5 +179,11 @@ export function run() {
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  run()
+  const preflight = process.argv.includes('--preflight')
+  if (preflight) {
+    const baseFlag = process.argv.indexOf('--base')
+    runPreflight(baseFlag === -1 ? 'main' : process.argv[baseFlag + 1])
+  } else {
+    run()
+  }
 }

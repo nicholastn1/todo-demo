@@ -5,7 +5,8 @@
  * (docs/evidence/<branch-slug>/), instead of an agent hand-writing it.
  *
  * It lists the screenshots and video captured by the playwright-evidence
- * skill and inlines summary.md as log evidence.
+ * skill, inlines summary.md as log evidence, and computes the token-usage
+ * lines via the create-pr skill's token-usage.cjs.
  *
  * Usage: node build-evidence-pr-block.cjs [--slug <branch-slug>]
  * Default slug: the current git branch, with every "/" replaced by "-".
@@ -15,7 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const { parseArgs } = require('node:util');
 
 const EVIDENCE_DIR_RELATIVE_PATH = path.join('docs', 'evidence');
@@ -23,6 +24,14 @@ const SUMMARY_FILE_NAME = 'summary.md';
 const PNG_EXTENSION = '.png';
 const MP4_EXTENSION = '.mp4';
 const WEBM_EXTENSION = '.webm';
+const TOKEN_USAGE_SCRIPT_RELATIVE_PATH = path.join(
+  '.claude',
+  'skills',
+  'create-pr',
+  'scripts',
+  'token-usage.cjs',
+);
+const TOKEN_USAGE_FAILURE_PREFIX = 'n/a — token-usage script failed:';
 const NO_VIDEO_LINE = '**Video evidence:** n/a — no video captured; see log evidence below.';
 const NO_SCREENSHOTS_LINE = 'n/a — no screenshots captured.';
 const NO_SUMMARY_BLOCK = '_No summary.md found in the evidence folder._';
@@ -76,6 +85,28 @@ function readSummary(evidenceDir) {
   const summaryPath = path.join(evidenceDir, SUMMARY_FILE_NAME);
   if (!fs.existsSync(summaryPath)) return undefined;
   return fs.readFileSync(summaryPath, 'utf8');
+}
+
+/**
+ * Token usage comes from the create-pr skill's script, which reads this
+ * session's own transcript. A failure here is reported in place rather than
+ * fatal: a missing number must not block the PR body from being assembled.
+ */
+function computeTokenUsage(root) {
+  const scriptPath = path.join(root, TOKEN_USAGE_SCRIPT_RELATIVE_PATH);
+  const result = spawnSync(process.execPath, [scriptPath], { encoding: 'utf8' });
+
+  if (result.error) {
+    return `${TOKEN_USAGE_FAILURE_PREFIX} ${result.error.message}`;
+  }
+
+  if (result.status !== 0) {
+    const firstStderrLine =
+      (result.stderr || '').trim().split('\n')[0] || `exited with code ${result.status}`;
+    return `${TOKEN_USAGE_FAILURE_PREFIX} ${firstStderrLine}`;
+  }
+
+  return result.stdout.trimEnd();
 }
 
 /**
@@ -145,14 +176,23 @@ function buildLogEvidenceSection(slug, summary) {
   );
 }
 
-function buildPrBlock({ slug, screenshots, video, summary, attachmentUrlByFile = new Map() }) {
+function buildPrBlock({
+  slug,
+  screenshots,
+  video,
+  summary,
+  tokenUsage,
+  attachmentUrlByFile = new Map(),
+}) {
   return (
     '## Agent Evidence\n\n' +
     '- [x] This PR was opened by an AI agent\n\n' +
     `${buildVideoLine(slug, video, attachmentUrlByFile)}\n\n` +
     `**Screenshots:** ${buildScreenshotsSection(slug, screenshots, attachmentUrlByFile)}\n\n` +
     '**Log evidence:**\n\n' +
-    `${buildLogEvidenceSection(slug, summary)}\n`
+    `${buildLogEvidenceSection(slug, summary)}\n\n` +
+    '### Token Usage\n\n' +
+    `${tokenUsage}\n`
   );
 }
 
@@ -182,10 +222,13 @@ function main() {
   const screenshots = collectScreenshots(evidenceDir);
   const video = findVideo(evidenceDir);
   const summary = readSummary(evidenceDir);
+  const tokenUsage = computeTokenUsage(root);
 
   const attachmentUrlByFile = parseAttachments(values.attachments);
 
-  process.stdout.write(buildPrBlock({ slug, screenshots, video, summary, attachmentUrlByFile }));
+  process.stdout.write(
+    buildPrBlock({ slug, screenshots, video, summary, tokenUsage, attachmentUrlByFile }),
+  );
 }
 
 if (require.main === module) {
