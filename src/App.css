@@ -1,102 +1,548 @@
+/*
+ * Ink-on-newsprint ledger, full-bleed.
+ *
+ * Every choice here is filtered through one constraint: this gets demoed live
+ * over a video call, so H.264 sees it before the audience does. That codec
+ * shreds hairlines, bands gradients, and smears low-contrast grey — so there
+ * are none. Rules are 3px minimum, fills are flat, shadows are hard offsets
+ * with no blur, and the smallest type on screen is 15px at full contrast.
+ *
+ * Layout: a fixed left rail holds every control, the ledger scrolls beside it.
+ * Nothing the presenter needs to click can scroll out of reach mid-demo.
+ */
+
 :root {
+  --paper: #f2ece1;
+  --paper-deep: #e7dece;
+  --ink: #16130f;
+  --ink-soft: #4a4238;
+  --mark: #cc3311;
+  --mark-deep: #a72708;
+
+  --rule: 3px;
+
+  --font-display: 'Fraunces Variable', Georgia, serif;
+  --font-body: 'Archivo Variable', 'Helvetica Neue', sans-serif;
+
   color-scheme: light dark;
-  font-family: system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16130f;
+    --paper-deep: #201b15;
+    --ink: #f2ece1;
+    --ink-soft: #b3a794;
+    --mark: #ff5c3d;
+    --mark-deep: #ff7a60;
+  }
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  display: grid;
+  grid-template-columns: minmax(21rem, 27rem) 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------- rail */
+
+.rail {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 1.75rem;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  background: var(--paper-deep);
+  border-right: var(--rule) solid var(--ink);
+  overflow-y: auto;
 }
 
-.app {
-  width: min(36rem, 92vw);
-  padding: 2rem 0 4rem;
+/* ----------------------------------------------------------------- masthead */
+
+.masthead {
+  border-bottom: var(--rule) solid var(--ink);
+  padding-bottom: 1.125rem;
 }
 
-h1 {
-  font-size: 1.5rem;
+.masthead__kicker {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mark);
 }
 
-form {
+.masthead__title {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-display);
+  font-variation-settings: 'SOFT' 20, 'WONK' 1, 'opsz' 100;
+  font-weight: 900;
+  font-size: clamp(3.5rem, 7vw, 5rem);
+  line-height: 0.86;
+  letter-spacing: -0.035em;
+}
+
+.masthead__mark {
+  color: var(--mark);
+}
+
+.masthead__meta {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-input[type='text'],
-form input {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  font: inherit;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: 0.375rem;
-  background: transparent;
-  color: inherit;
-}
-
-button {
-  padding: 0.5rem 0.75rem;
-  font: inherit;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: 0.375rem;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-button.active {
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  align-items: center;
+  gap: 0.6875rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
   font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
+
+.masthead__dot {
+  width: 7px;
+  height: 7px;
+  background: var(--mark);
+  border-radius: 50%;
+}
+
+/* ------------------------------------------------------------------ compose */
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.compose__input {
+  padding: 0.9375rem 1rem;
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--rule) solid var(--ink);
+}
+
+.compose__input::placeholder {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.compose__input:focus-visible,
+.compose__submit:focus-visible,
+.filters__tab:focus-visible,
+.filters__archive:focus-visible,
+.ledger__check:focus-visible {
+  outline: var(--rule) solid var(--mark);
+  outline-offset: 3px;
+}
+
+.compose__submit {
+  padding: 0.9375rem 1.25rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--ink);
+  border: var(--rule) solid var(--ink);
+  cursor: pointer;
+  transition: background 90ms, border-color 90ms, transform 90ms;
+}
+
+.compose__submit:hover {
+  background: var(--mark);
+  border-color: var(--mark);
+}
+
+.compose__submit:active {
+  transform: translateY(2px);
+}
+
+/* ------------------------------------------------------------------ filters */
 
 .filters {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  flex-direction: column;
+  gap: 0.375rem;
 }
 
-.filters .archive {
-  margin-left: auto;
+.filters__legend {
+  margin: 0 0 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
-ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.filters__tabs {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.375rem;
 }
 
-li label {
+.filters__tab {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  padding: 0.5rem;
-  border-radius: 0.375rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6875rem 0.875rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: var(--rule) solid transparent;
   cursor: pointer;
 }
 
-li label:hover {
-  background: color-mix(in srgb, currentColor 8%, transparent);
+.filters__tab:hover {
+  border-color: var(--ink);
 }
 
-li.done span,
-li.archived span {
-  text-decoration: line-through;
-  opacity: 0.55;
+/* The active section inverts to a solid block — the most codec-proof state
+   signal available, and it reads at a glance on a shared screen. */
+.filters__tab[aria-pressed='true'] {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
-li.empty,
-footer {
-  padding: 0.75rem 0.5rem;
-  opacity: 0.6;
-  font-size: 0.875rem;
+.filters__count {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.filters__tab[aria-pressed='true'] .filters__count {
+  color: var(--paper);
+}
+
+.filters__archive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.75rem 0.75rem 0.875rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--paper);
+  background: var(--mark);
+  border: var(--rule) solid var(--ink);
+  cursor: pointer;
+  transition: background 90ms, transform 90ms;
+}
+
+.filters__archive:hover:not(:disabled) {
+  background: var(--mark-deep);
+}
+
+.filters__archive:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+.filters__archive:disabled {
+  color: var(--ink-soft);
+  background: transparent;
+  border-color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+.filters__badge {
+  min-width: 1.875rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+}
+
+.filters__archive:disabled .filters__badge {
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+  background: transparent;
+}
+
+/* -------------------------------------------------------------------- tally */
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: auto;
+  border: var(--rule) solid var(--ink);
+}
+
+.tally__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.875rem 0.375rem;
+}
+
+.tally__cell + .tally__cell {
+  border-left: var(--rule) solid var(--ink);
+}
+
+.tally__num {
+  font-family: var(--font-display);
+  font-variation-settings: 'SOFT' 20, 'WONK' 1, 'opsz' 60;
+  font-size: 2.125rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tally__label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* --------------------------------------------------------------------- pane */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Column headers stay put while the ledger scrolls under them. */
+.pane__head {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 8.5rem;
+  gap: 1rem;
+  flex: none;
+  padding: 1.125rem clamp(1.25rem, 3vw, 2.5rem);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.pane__head span:last-child {
+  text-align: right;
+}
+
+/* ------------------------------------------------------------------- ledger */
+
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ledger__row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 8.5rem;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 clamp(1.25rem, 3vw, 2.5rem);
+  border-bottom: 2px solid var(--ink);
+}
+
+/* Only while .ledger--intro is on the list — see the comment in App.tsx. */
+.ledger--intro .ledger__row {
+  animation: entry 320ms both cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+
+@keyframes entry {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.ledger__row:hover {
+  background: var(--paper-deep);
+}
+
+.ledger__index {
+  font-family: var(--font-display);
+  font-variation-settings: 'SOFT' 20, 'WONK' 1;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.ledger__row:hover .ledger__index {
+  color: var(--mark);
+}
+
+.ledger__label {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1rem 0;
+  cursor: pointer;
+}
+
+.ledger__row.archived .ledger__label {
+  cursor: default;
+}
+
+/* Custom checkbox: 26px is large enough to click reliably while presenting,
+   and to stay a legible square after compression. */
+.ledger__check {
+  appearance: none;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  background: var(--paper);
+  border: var(--rule) solid var(--ink);
+  cursor: pointer;
+  position: relative;
+}
+
+.ledger__check:checked {
+  background: var(--mark);
+  border-color: var(--mark);
+}
+
+.ledger__check:checked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* a thick tick, drawn with two borders so no image or icon font is needed */
+  border-left: 3px solid var(--paper);
+  border-bottom: 3px solid var(--paper);
+  width: 12px;
+  height: 7px;
+  margin: 6px auto auto 5px;
+  transform: rotate(-45deg);
+}
+
+.ledger__check:disabled {
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+  cursor: default;
+}
+
+.ledger__title {
+  position: relative;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+/* Done state keeps FULL text contrast and signals with a struck rule instead.
+   A faded grey would be the conventional move and the first thing a codec
+   would throw away. The rule animates in — it is the demo's payoff beat. */
+.ledger__title::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  height: 3px;
+  background: var(--mark);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ledger__row.done .ledger__title::after,
+.ledger__row.archived .ledger__title::after {
+  transform: scaleX(1);
+}
+
+.ledger__row.archived .ledger__title {
+  color: var(--ink-soft);
+}
+
+.ledger__row.archived .ledger__title::after {
+  background: var(--ink-soft);
+}
+
+.ledger__stamp {
+  justify-self: end;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 2px solid currentColor;
+}
+
+.ledger__stamp--pending {
+  color: var(--ink-soft);
+}
+
+.ledger__stamp--done {
+  color: var(--paper);
+  background: var(--mark);
+  border-color: var(--mark);
+}
+
+.ledger__stamp--archived {
+  color: var(--paper);
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+  transform: rotate(-3deg);
+}
+
+.ledger__empty {
+  padding: 3.5rem clamp(1.25rem, 3vw, 2.5rem);
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  border-bottom: 2px solid var(--ink);
+}
+
+/* Stack the rail above the list on a narrow window — the rail keeps its own
+   scroll, so the controls never crowd the ledger off screen. */
+@media (max-width: 60rem) {
+  .page {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .rail {
+    border-right: none;
+    border-bottom: var(--rule) solid var(--ink);
+  }
+
+  .tally {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
