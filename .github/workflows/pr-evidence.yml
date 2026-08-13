@@ -1,0 +1,32 @@
+name: PR Evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: PR Evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The script reads the PR body from GITHUB_EVENT_PATH, never from a
+      # ${{ }} interpolation — the body is untrusted text and interpolating it
+      # into a run: block would be a shell-injection vector.
+      - name: Check PR evidence
+        run: node .github/scripts/evidence-check.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
