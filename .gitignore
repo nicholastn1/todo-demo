@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# playwright-evidence deliverables — attached to PRs, never committed
+docs/evidence/
