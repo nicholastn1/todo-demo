@@ -95,12 +95,13 @@ test('buildLogEvidenceSection folds the summary into a details block', () => {
   assert.match(buildLogEvidenceSection(SLUG, undefined), /No summary\.md found/);
 });
 
-test('the assembled block carries the agent checkbox, the video, and the screenshots', () => {
+test('the assembled block carries the agent checkbox, the video, and the token usage', () => {
   const block = buildPrBlock({
     slug: SLUG,
     screenshots: ['01-a.png'],
     video: 'demo.mp4',
     summary: 'it worked',
+    tokenUsage: 'Total tokens: 128,540',
     attachmentUrlByFile: new Map([
       ['demo.mp4', VIDEO_URL],
       ['01-a.png', SHOT_URL],
@@ -110,16 +111,20 @@ test('the assembled block carries the agent checkbox, the video, and the screens
   assert.match(block, /- \[x\] This PR was opened by an AI agent/);
   assert.match(block, new RegExp(VIDEO_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(block, /!\[01-a\.png\]/);
+  assert.match(block, /### Token Usage/);
+  assert.match(block, /Total tokens: 128,540/);
 });
 
-test('the assembled block still works with no attachments at all', () => {
+test('a failed token-usage read is reported in the block, not fatal', () => {
   const block = buildPrBlock({
     slug: SLUG,
     screenshots: ['01-a.png'],
     video: 'demo.mp4',
     summary: undefined,
+    tokenUsage: 'n/a — token-usage script failed: no transcript',
   });
 
   assert.match(block, /drag-and-drop/);
   assert.match(block, /docs\/evidence\/my-branch\/01-a\.png/);
+  assert.match(block, /n\/a — token-usage script failed/);
 });

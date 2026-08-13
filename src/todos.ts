@@ -9,12 +9,12 @@ export type Todo = {
 export type Filter = 'all' | 'pending' | 'done' | 'archived'
 
 export const seed: Todo[] = [
-  { id: 1, title: 'Escrever roteiro da apresentação', status: 'pending' },
-  { id: 2, title: 'Revisar slides do deck', status: 'pending' },
-  { id: 3, title: 'Testar microfone e câmera', status: 'pending' },
+  { id: 1, title: 'Escrever documentação da API', status: 'pending' },
+  { id: 2, title: 'Revisar proposta de arquitetura', status: 'pending' },
+  { id: 3, title: 'Configurar pipeline de staging', status: 'pending' },
   { id: 4, title: 'Reservar sala de reunião', status: 'done' },
   { id: 5, title: 'Enviar convite pro time', status: 'done' },
-  { id: 6, title: 'Preparar ambiente de demo', status: 'pending' },
+  { id: 6, title: 'Padronizar variáveis de ambiente', status: 'pending' },
   { id: 7, title: 'Configurar Vite + Vitest', status: 'done' },
   { id: 8, title: 'Ajustar tema claro/escuro', status: 'pending' },
   { id: 9, title: 'Escrever testes de filtro', status: 'done' },

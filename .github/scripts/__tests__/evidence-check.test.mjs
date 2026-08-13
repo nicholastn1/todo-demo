@@ -1,10 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
+  buildPreflight,
   buildSummary,
   evaluate,
   hasScreenshot,
   hasVideo,
+  localEvidence,
   stripHtmlComments,
   touchesUi,
 } from '../evidence-check.mjs'
@@ -83,4 +88,58 @@ test('a CI-only PR is exempt, even with an empty body', () => {
   assert.equal(result.required, false)
   assert.equal(result.passed, true)
   assert.match(buildSummary(result), /not required/)
+})
+
+function makeEvidenceDir(files) {
+  const dir = mkdtempSync(join(tmpdir(), 'preflight-'))
+  for (const name of files) writeFileSync(join(dir, name), 'x')
+  return dir
+}
+
+test('localEvidence reports what is on disk, and tolerates a missing folder', () => {
+  const dir = makeEvidenceDir(['demo.mp4', '01-a.png'])
+  assert.deepEqual(localEvidence(dir), { dir, video: true, screenshot: true })
+
+  const shotsOnly = makeEvidenceDir(['01-a.png'])
+  assert.equal(localEvidence(shotsOnly).video, false)
+
+  const absent = join(tmpdir(), 'does-not-exist-preflight')
+  assert.deepEqual(localEvidence(absent), {
+    dir: absent,
+    video: false,
+    screenshot: false,
+  })
+})
+
+test('preflight passes when a UI change already has local evidence', () => {
+  const result = buildPreflight({
+    files: ['src/App.tsx'],
+    slug: 'my-branch',
+    evidence: { dir: 'docs/evidence/my-branch', video: true, screenshot: true },
+  })
+  assert.equal(result.passed, true)
+  assert.match(result.report, /Evidence IS required — 1 UI file/)
+})
+
+test('preflight stops a UI change with no recording yet', () => {
+  const result = buildPreflight({
+    files: ['src/App.css', 'README.md'],
+    slug: 'my-branch',
+    evidence: { dir: 'docs/evidence/my-branch', video: false, screenshot: false },
+  })
+  assert.equal(result.passed, false)
+  assert.deepEqual(result.missing, ['a video', 'a screenshot'])
+  assert.match(result.report, /video:      MISSING/)
+  assert.match(result.report, /would just spend a failed CI round/)
+})
+
+test('preflight is silent about evidence for a non-UI change', () => {
+  const result = buildPreflight({
+    files: ['.claude/rules/comments.md'],
+    slug: 'my-branch',
+    evidence: { dir: 'docs/evidence/my-branch', video: false, screenshot: false },
+  })
+  assert.equal(result.required, false)
+  assert.equal(result.passed, true)
+  assert.match(result.report, /not required/)
 })

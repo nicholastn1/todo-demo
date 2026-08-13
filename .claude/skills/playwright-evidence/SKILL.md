@@ -125,9 +125,12 @@ most storyboard failures:
 - **Bare text is ambiguous, and badly so here.** The word "concluídas"
   appears in the filter tab, the archive button, the tally cell, **and** the
   per-row status stamp — four matches for `text=Concluídas`, a strict-mode
-  violation every time. Always scope it:
-  `nav.filters button:has-text("Concluídas")` for the tab,
-  `.ledger__stamp--done` for a row's stamp.
+  violation every time. Scoping to `nav.filters` is **not enough**: the archive
+  button lives in there too, so `nav.filters button:has-text("Concluídas")`
+  still resolves to two elements. Scope by class:
+  `.filters__tab:has-text("Concluídas")` for the tab,
+  `.filters__archive` for the archive button, `.ledger__stamp--done` for a
+  row's stamp.
 
 This app's filter buttons carry `aria-pressed`, so
 `button[aria-pressed="true"]` is a reliable way to assert which filter is
@@ -168,8 +171,8 @@ scenes:
   - name: Archive the completed ones
     do:
       - click: 'button:has-text("Arquivar concluídas")'
-      - click: 'nav.filters button:has-text("Arquivadas")'
-      - wait_for: 'button[aria-pressed="true"]:has-text("Arquivadas")'
+      - click: '.filters__tab:has-text("Arquivadas")'
+      - wait_for: '.filters__tab[aria-pressed="true"]:has-text("Arquivadas")'
       - screenshot: docs/evidence/<branch-slug>/03-archived.png
 ```
 
@@ -180,6 +183,25 @@ scenes:
 - **Use `type:`/`fill:`, never a `js:` value-set** — setting `element.value`
   does not fire a React controlled input's change handler, so `App.tsx`'s
   `setTitle` never runs and the form submits empty.
+- **Hold each beat with `pause: <seconds>`.** shot-scraper drives the page as
+  fast as it can, so a scene without pauses is unwatchable — a filter switch
+  lands in well under a second, and a viewer sees the list flicker without
+  reading what changed. Give any state worth understanding its own scene and
+  **2–3 seconds** after the `wait_for`. A screenshot is not enough on its own:
+  the video is what a reviewer actually plays. (`pause` is the action name;
+  `wait` is not valid and fails the whole run.)
+- **Verify the pacing instead of assuming it.** Sample the rendered video
+  rather than trusting the YAML — one frame per second, checking which state is
+  on screen:
+
+  ```bash
+  ffprobe -v error -show_entries format=duration -of default=nw=1 <video>.mp4
+  ffmpeg -v error -ss <t> -i <video>.mp4 -frames:v 1 \
+    -vf "crop=200:20:60:<y>,scale=1:1" -f rawvideo -pix_fmt rgb24 - | od -An -tu1
+  ```
+
+  The active filter tab is a dark block, so a low RGB sum at its row means it
+  is the selected one — enough to prove each section actually stayed on screen.
 
 Run it:
 

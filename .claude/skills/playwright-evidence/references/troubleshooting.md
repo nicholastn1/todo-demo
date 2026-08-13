@@ -42,9 +42,15 @@ that scene runs against** (SKILL.md Step 4). The usual causes here:
   seed still contains `done` rows.
 - **An ambiguous bare-text selector.** `text=Concluídas` matches the filter
   tab, the archive button, the tally cell, and every completed row's status
-  stamp — a strict-mode violation, not a missing element. Scope it:
-  `nav.filters button:has-text("Concluídas")` for the tab,
-  `.ledger__stamp--done` for a stamp.
+  stamp — a strict-mode violation, not a missing element.
+  **Scoping to `nav.filters` does not fix it**: the archive button
+  ("Arquivar concluídas") is inside that nav and matches the same substring, so
+  `nav.filters button:has-text("Concluídas")` still resolves to two elements.
+  Scope by class instead — `.filters__tab:has-text("Concluídas")` for the tab,
+  `.filters__archive` for the archive button, `.ledger__stamp--done` for a
+  row's stamp. A storyboard that only ever clicked "Pendentes", "Todas", and
+  "Arquivadas" will not have hit this; adding a "Concluídas" click is what
+  surfaces it.
 - **An exact-text locator on a filter tab.** The tabs render their count
   inside the button, so the text is `Pendentes8`. Use `has-text()` substring
   matching, or `aria-pressed`.
