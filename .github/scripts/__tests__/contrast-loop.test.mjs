@@ -6,9 +6,12 @@ import {
   compareCounts,
   groupByColourPair,
   parseFailure,
+  parseNodes,
+  rankNodes,
   rankTargets,
   readBaseline,
   requiredRatio,
+  selectNode,
   selectTarget,
   validateBoundary,
 } from '../contrast-loop.mjs'
@@ -124,4 +127,25 @@ test('readBaseline accepts a non-negative integer and rejects the rest', () => {
   for (const bad of ['{"violations": -1}', '{"violations": 1.5}', '{"violations": "7"}', '{}']) {
     assert.throws(() => readBaseline(bad), /non-negative integer/)
   }
+})
+
+test('selection now works one element at a time', () => {
+  const parsed = parseNodes([
+    { target: '.b', failureSummary: summary('4.41', '#f2ece1', '#cc3311', '9.8', 'bold') },
+    { target: '.a', failureSummary: summary('4.41', '#f2ece1', '#cc3311', '9.8', 'bold') },
+    { target: '.worst', failureSummary: summary('3.88', '#cc3311', '#e7dece', '11.3', 'bold') },
+  ])
+  assert.equal(parsed.length, 3)
+  assert.equal(selectNode(parsed).target, '.worst')
+  // identical shortfall falls back to the target string, so reordering the
+  // input cannot change which element an iteration picks
+  assert.deepEqual(
+    rankNodes(parsed).map((n) => n.target),
+    ['.worst', '.a', '.b'],
+  )
+})
+
+test('an element whose summary cannot be parsed is not selectable', () => {
+  assert.deepEqual(parseNodes([{ target: '.x', failureSummary: 'garbage' }]), [])
+  assert.equal(selectNode([]), undefined)
 })

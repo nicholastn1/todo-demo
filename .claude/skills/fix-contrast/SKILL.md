@@ -5,7 +5,7 @@ description: Repair one colour-contrast target selected by the contrast loop. Ad
 
 # Fix Contrast
 
-One iteration repairs **one colour pair**. You are given a target from
+One iteration repairs **one violating element**. You are given a target from
 `npm run agent:contrast:select`; you change `src/App.css` so that pair meets
 its required ratio, and you change nothing else.
 
@@ -30,8 +30,14 @@ and fails the iteration if you cross them:
 
 ## Step 1 — Understand the target
 
-The selector gives you `foreground`, `background`, `fontSizePt`, `bold`, the
-measured `ratio`, the `required` ratio, and up to five example `targets`.
+The selector gives you one element: its `target` selector, `foreground`,
+`background`, `fontSizePt`, `bold`, the measured `ratio` and the `required`
+ratio.
+
+A repair is a token change, and tokens are shared, so fixing this element will
+often clear others in the same edit. That is fine and expected — the scan
+count, not a per-element tally, is what the iteration is judged on. Do not
+contrive a narrower change just to affect exactly one element.
 
 Find which tokens produce that pair. The palette lives at the top of
 `src/App.css` as custom properties on `:root`, redefined under

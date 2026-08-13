@@ -77,10 +77,41 @@ export function parseFailure(summary = '') {
 }
 
 /**
- * One target per distinct colour pair, not per node: five stamps failing on
- * the same two tokens are one repair, and selecting them individually would
- * spend five iterations reaching the same edit.
+ * One target per violating element.
+ *
+ * Note the consequence, because it surprises: a repair is a token change in
+ * App.css, and several elements usually share a token. Fixing one element
+ * commonly clears its siblings in the same commit, so the count can fall by
+ * more than one per iteration and a later iteration can find its target
+ * already gone. That is a healthy outcome, not a bug — the loop is driven by
+ * the scan, not by a fixed list drawn up in advance.
  */
+export function parseNodes(nodes = []) {
+  return nodes
+    .map((node) => {
+      const parsed = parseFailure(node.failureSummary)
+      if (!parsed) return undefined
+      return { target: node.target, ...parsed, required: requiredRatio(parsed) }
+    })
+    .filter(Boolean)
+}
+
+/** Worst shortfall first; target string breaks ties so two runs agree. */
+export function rankNodes(parsed = []) {
+  return [...parsed].sort((a, b) => {
+    const shortfall = b.required - b.ratio - (a.required - a.ratio)
+    if (Math.abs(shortfall) > 1e-9) return shortfall
+    return a.target.localeCompare(b.target)
+  })
+}
+
+export function selectNode(parsed = []) {
+  const ranked = rankNodes(parsed)
+  return ranked.length ? ranked[0] : undefined
+}
+
+/** Kept for the scan report: seeing the pairs explains *why* a count is what
+ * it is, even though selection now works one element at a time. */
 export function groupByColourPair(nodes = []) {
   const groups = new Map()
   for (const node of nodes) {
@@ -201,8 +232,11 @@ export async function scan({ settleMs = SETTLE_MS } = {}) {
       maxBuffer: 32 * 1024 * 1024,
     })
     const { nodes } = JSON.parse(raw)
-    const groups = groupByColourPair(nodes)
-    return { count: nodes.length, groups: rankTargets(groups) }
+    return {
+      count: nodes.length,
+      nodes: rankNodes(parseNodes(nodes)),
+      groups: rankTargets(groupByColourPair(nodes)),
+    }
   } finally {
     server.kill()
     rmSync(workdir, { recursive: true, force: true })
@@ -237,8 +271,8 @@ async function main() {
   }
 
   if (command === 'select') {
-    const { count, groups } = await scan()
-    const target = selectTarget(groups)
+    const { count, nodes } = await scan()
+    const target = selectNode(nodes)
     if (!target) {
       process.stdout.write(`${JSON.stringify({ found: false, count: 0 }, null, 2)}\n`)
       return

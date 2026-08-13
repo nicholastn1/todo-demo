@@ -1,6 +1,12 @@
 name: Agent - Fix Contrast
 
 on:
+  # 2026-08-14 10:00 America/Sao_Paulo (UTC-3). GitHub cron is UTC, and a
+  # scheduled run is queued, not guaranteed on time — under load it can be
+  # minutes late or skipped entirely. Do not depend on this firing at a
+  # precise moment; dispatch it by hand if the timing has to be exact.
+  schedule:
+    - cron: "0 13 14 8 *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -112,7 +118,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Use the fix-contrast skill to repair exactly one colour-contrast
-            target. The selected target is in selection.json at the repo root.
+            violation. The selected target is in selection.json at the repo root.
             Obey the skill's hard boundaries: edit only src/App.css, never
             suppress, never commit or push. Report SKIPPED rather than force an
             unsound repair.
@@ -154,14 +160,14 @@ jobs:
             const t = sel.target;
             fs.writeFileSync(process.env.RUNNER_TEMP + '/transfer/pr-body.md', [
               '## Summary', '',
-              'Automated contrast-loop iteration: repairs one colour pair in \`src/App.css\`.', '',
+              'Automated contrast-loop iteration: repairs one violating element in \`src/App.css\`.', '',
               '## Target', '',
               '| Field | Value |', '| --- | --- |',
               \`| Foreground | \\\`\${t.foreground}\\\` |\`,
               \`| Background | \\\`\${t.background}\\\` |\`,
               \`| Measured | \${t.ratio}:1 |\`,
               \`| Required | \${t.required}:1 |\`,
-              \`| Elements | \${t.nodes} |\`, '',
+              \`| Element | \\\`\${t.target}\\\` |\`, '',
               '## Result', '',
               \`Violations: \${sel.count} -> \${after.count}\`, '',
               'Verified in the job: lint, build, Vitest, script tests, the change',
