@@ -12,7 +12,11 @@
     "test:watch": "vitest",
     "evidence": "bash .claude/skills/playwright-evidence/scripts/evidence-shot.sh",
     "evidence:doctor": "bash .claude/skills/playwright-evidence/scripts/setup-evidence-tooling.sh --check",
-    "test:scripts": "node --test \".claude/skills/**/scripts/**/*.test.cjs\" \".github/scripts/__tests__/*.test.mjs\""
+    "test:scripts": "node --test \".claude/skills/**/scripts/**/*.test.cjs\" \".github/scripts/__tests__/*.test.mjs\"",
+    "agent:contrast:scan": "node .github/scripts/contrast-loop.mjs scan",
+    "agent:contrast:select": "node .github/scripts/contrast-loop.mjs select",
+    "agent:contrast:boundary": "node .github/scripts/contrast-loop.mjs boundary",
+    "agent:contrast:ratchet": "node .github/scripts/contrast-loop.mjs ratchet"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
@@ -25,6 +29,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "axe-core": "^4.13.0",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",

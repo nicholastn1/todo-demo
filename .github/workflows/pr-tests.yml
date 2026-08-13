@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: pr-tests-${{ github.event.pull_request.number }}
@@ -38,3 +39,31 @@ jobs:
 
       - name: Test repository scripts
         run: npm run test:scripts
+
+      # The contrast ratchet needs a browser, so it costs minutes rather than
+      # seconds. Most pull requests here touch docs, skills, or CI and cannot
+      # change a rendered colour, so it runs only when the UI actually moved.
+      # The condition imports touchesUi from the evidence gate rather than
+      # restating "src/" — one copy of the rule (.claude/rules/ci.md).
+      - name: Does this change the UI?
+        id: ui
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only > changed.txt
+          CHANGED=$(node -e "
+            const { touchesUi } = await import('./.github/scripts/evidence-check.mjs');
+            const files = require('fs').readFileSync('changed.txt', 'utf8').split('\n').filter(Boolean);
+            console.log(touchesUi(files));
+          " --input-type=module)
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "UI changed: $CHANGED"
+
+      - name: Install evidence tooling
+        if: steps.ui.outputs.changed == 'true'
+        run: bash .claude/skills/playwright-evidence/scripts/setup-evidence-tooling.sh
+
+      - name: Contrast ratchet
+        if: steps.ui.outputs.changed == 'true'
+        run: npm run --silent agent:contrast:ratchet
