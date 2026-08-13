@@ -6,13 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
+    "lint": "oxlint --deny-warnings",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:skills": "node --test \".claude/skills/playwright-evidence/scripts/__tests__/*.test.cjs\"",
     "evidence": "bash .claude/skills/playwright-evidence/scripts/evidence-shot.sh",
-    "evidence:doctor": "bash .claude/skills/playwright-evidence/scripts/setup-evidence-tooling.sh --check"
+    "evidence:doctor": "bash .claude/skills/playwright-evidence/scripts/setup-evidence-tooling.sh --check",
+    "test:scripts": "node --test \".claude/skills/playwright-evidence/scripts/__tests__/*.test.cjs\" \".github/scripts/__tests__/*.test.mjs\""
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
