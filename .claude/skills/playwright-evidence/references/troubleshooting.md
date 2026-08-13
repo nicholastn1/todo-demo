@@ -41,9 +41,13 @@ that scene runs against** (SKILL.md Step 4). The usual causes here:
   scenario archives, make sure a scene completes a task first, or that the
   seed still contains `done` rows.
 - **An ambiguous bare-text selector.** `text=Concluídas` matches the filter
-  button and the footer counter at once — that is a strict-mode violation,
-  not a missing element. Scope it:
-  `nav.filters button:has-text("Concluídas")`.
+  tab, the archive button, the tally cell, and every completed row's status
+  stamp — a strict-mode violation, not a missing element. Scope it:
+  `nav.filters button:has-text("Concluídas")` for the tab,
+  `.ledger__stamp--done` for a stamp.
+- **An exact-text locator on a filter tab.** The tabs render their count
+  inside the button, so the text is `Pendentes8`. Use `has-text()` substring
+  matching, or `aria-pressed`.
 - **An element that only exists after an earlier interaction** — a task you
   add in scene 2 is not in the initial-load dump.
 - **Accented text.** The UI is in Portuguese; `:has-text()` matching is

@@ -122,13 +122,19 @@ most storyboard failures:
 
 - **Icon-only buttons** carry their name in a `title` attribute, which
   `:has-text()` never matches — use `button[title="Ascending"]`.
-- **Bare text is ambiguous** — `text=Concluídas` matches the filter button
-  and the footer counter at once (strict-mode violation). Scope it:
-  `nav.filters button:has-text("Concluídas")`.
+- **Bare text is ambiguous, and badly so here.** The word "concluídas"
+  appears in the filter tab, the archive button, the tally cell, **and** the
+  per-row status stamp — four matches for `text=Concluídas`, a strict-mode
+  violation every time. Always scope it:
+  `nav.filters button:has-text("Concluídas")` for the tab,
+  `.ledger__stamp--done` for a row's stamp.
 
 This app's filter buttons carry `aria-pressed`, so
 `button[aria-pressed="true"]` is a reliable way to assert which filter is
-active — prefer it over reading the CSS class.
+active — prefer it over reading the CSS class. Note the tabs also render
+their count inside the button, so the accessible name is `Concluídas7`, not
+`Concluídas` — `has-text()` substring matching still works, but an exact-text
+locator will not.
 
 **No stable selector at all?** In an interactive session, offer the user a
 small source change: add a `data-testid` to the element, as part of the
@@ -146,7 +152,7 @@ output: docs/evidence/<branch-slug>/demo.webm
 url: http://localhost:5173/
 viewport: { width: 1280, height: 900 }
 cursor: true
-wait_for: 'h1:has-text("Todo List")'
+wait_for: 'h1:has-text("Todo")'
 scenes:
   - name: Add a task
     do:
