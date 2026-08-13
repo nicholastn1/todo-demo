@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -142,4 +143,24 @@ test('preflight is silent about evidence for a non-UI change', () => {
   assert.equal(result.required, false)
   assert.equal(result.passed, true)
   assert.match(result.report, /not required/)
+})
+
+test('--touches-ui prints a plain boolean the shell can branch on', () => {
+  const list = join(tmpdir(), `touches-${process.pid}.txt`)
+
+  writeFileSync(list, '.claude/rules/ci.md\npackage.json\n')
+  assert.equal(
+    execFileSync('node', ['.github/scripts/evidence-check.mjs', '--touches-ui', list], {
+      encoding: 'utf8',
+    }).trim(),
+    'false',
+  )
+
+  writeFileSync(list, '.github/workflows/pr-tests.yml\nsrc/App.css\n')
+  assert.equal(
+    execFileSync('node', ['.github/scripts/evidence-check.mjs', '--touches-ui', list], {
+      encoding: 'utf8',
+    }).trim(),
+    'true',
+  )
 })

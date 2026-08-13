@@ -178,9 +178,22 @@ export function run() {
   if (!result.passed) process.exitCode = 1
 }
 
+/**
+ * Answer "does this file list touch the UI?" for a caller that is not Node —
+ * the CI job deciding whether to spend a browser run on the contrast ratchet.
+ * It lives here rather than inline in the workflow so it is covered by tests;
+ * an inline `node -e` in YAML is exactly the code that never gets one.
+ */
+export function runTouchesUi(listPath) {
+  const files = readFileSync(listPath, 'utf8').split('\n').filter(Boolean)
+  process.stdout.write(`${touchesUi(files)}\n`)
+}
+
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  const preflight = process.argv.includes('--preflight')
-  if (preflight) {
+  const touchesUiFlag = process.argv.indexOf('--touches-ui')
+  if (touchesUiFlag !== -1) {
+    runTouchesUi(process.argv[touchesUiFlag + 1])
+  } else if (process.argv.includes('--preflight')) {
     const baseFlag = process.argv.indexOf('--base')
     runPreflight(baseFlag === -1 ? 'main' : process.argv[baseFlag + 1])
   } else {

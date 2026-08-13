@@ -52,11 +52,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only > changed.txt
-          CHANGED=$(node -e "
-            const { touchesUi } = await import('./.github/scripts/evidence-check.mjs');
-            const files = require('fs').readFileSync('changed.txt', 'utf8').split('\n').filter(Boolean);
-            console.log(touchesUi(files));
-          " --input-type=module)
+          CHANGED=$(node .github/scripts/evidence-check.mjs --touches-ui changed.txt)
           echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
           echo "UI changed: $CHANGED"
 
