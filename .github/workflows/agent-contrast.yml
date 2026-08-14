@@ -101,9 +101,11 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: npm run build
 
+      # A hung browser should cost minutes, not the job timeout.
       - name: Select one target
         id: target
         if: steps.gate.outputs.skip != 'true'
+        timeout-minutes: 8
         run: |
           npm run --silent agent:contrast:select > selection.json
           cat selection.json
@@ -138,6 +140,7 @@ jobs:
 
       - name: Verify the iteration
         if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
+        timeout-minutes: 10
         run: |
           npm run lint
           npm run build
