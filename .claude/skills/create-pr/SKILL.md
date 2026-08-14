@@ -110,20 +110,89 @@ git push -u origin "$(git branch --show-current)"
 
 ## Step 6 — Build the body
 
-Template:
+**The body is an inventory of what is in the diff. Nothing else.**
+
+A reviewer opens it to answer three questions: what changed, how do I run it,
+and what proves it works. Everything that does not serve those is noise, and
+noise is what makes a description stop being read.
+
+### Write
+
+- **What each file does**, as a table. One row per file, one line per row.
+- **The commands the change adds or changes**, as a table.
+- **Facts about the current state** — counts, selected targets, what is
+  configured, what does not run yet and why, in one line each.
+- **Verification**, as pasted command output. Real output, copied, not
+  described.
+
+Prefer a table to a paragraph whenever the content is a list of things.
+
+### Do not write
+
+- **Why alternatives were rejected.** A table of options you did not take
+  belongs in the conversation, not the PR.
+- **Rationale essays.** "Decisions worth reviewing", "why this approach" —
+  if a decision genuinely needs defending, one sentence next to the file it
+  affects, not a section.
+- **Hypotheticals.** What could have been done, what should happen if
+  something else were true, what would break under a scenario not in this
+  diff.
+- **Caveats about things outside the diff** — how a tool behaves under load,
+  what a future PR will need, advice for the reader's process.
+- **Narrative.** How a bug was found, what was tried first, what surprised
+  you. The commit message can carry that; the PR body is not a diary.
+- **Restating the diff in prose.** If the table says a file adds a flag, do
+  not also write a paragraph saying the file adds a flag.
+
+### Verify every number before you write it
+
+Counts, file lists, and versions get checked against the repo, not recalled:
+
+```bash
+gh pr diff <n> --repo nicholastn1/todo-demo --name-only    # the real file list
+grep -c '^test(' <test-file>                               # the real test count
+```
+
+A wrong number in a description is worse than an absent one — it is the part a
+reviewer trusts without checking.
+
+### Keep it current
+
+If you push after writing the body, re-read it. A body written for the first
+commit and left alone will describe behaviour the later commits removed, and
+the worst case is a description that argues *for* what was deleted. Re-run the
+verification block too; its numbers move.
+
+### Template
 
 ```markdown
-## Summary
+## O que entra
 
-<one or two sentences: what this does and why>
+| Arquivo | Função |
+|---|---|
+| ... | ... |
 
-## Notes
+## Comandos
 
-<context a reviewer needs: trade-offs, follow-ups, anything deliberately left
-out. "No additional notes." when there is genuinely nothing.>
+| Comando | O que faz |
+|---|---|
+| ... | ... |
+
+## Estado atual
+
+- <facts, one line each>
+
+## Verificação
+
+\`\`\`
+<pasted command output>
+\`\`\`
 
 <Agent Evidence section — see below>
 ```
+
+Drop any section with nothing to put in it. A PR that changes one file needs
+one table and a verification block, not five empty headings.
 
 **When `docs/evidence/<branch-slug>/` exists**, generate the whole Agent
 Evidence section rather than writing it by hand:
