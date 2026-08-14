@@ -3,7 +3,6 @@ name: create-pr
 description: Create a GitHub pull request from the current branch's changes. Commits what is staged, pushes, attaches evidence, and opens a PR with the project's body template. Use when the user wants to open a PR for their current work.
 user_invocable: true
 user_input: optional
-disable-model-invocation: true
 ---
 
 # Create Pull Request
