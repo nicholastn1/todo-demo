@@ -177,11 +177,25 @@ export function readBaseline(raw) {
 
 // --------------------------------------------------------------- browser IO
 
+const VITE_BIN = 'node_modules/vite/bin/vite.js'
+
+/** Progress goes to stderr: stdout is the JSON result, and a step that
+ * redirects stdout to a file has no other way to say where it got to. */
+function progress(message) {
+  process.stderr.write(`[contrast-loop] ${message}
+`)
+}
+
+/**
+ * Spawned through node directly, not npx: killing an npx wrapper does not
+ * necessarily reach the vite process underneath, and a surviving child with
+ * open pipes keeps this process alive after its work is done. stdio is
+ * ignored for the same reason — nothing here reads those pipes.
+ */
 function startPreview() {
-  const server = spawn('npx', ['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
+  return spawn(process.execPath, [VITE_BIN, 'preview', '--port', String(PREVIEW_PORT), '--strictPort'], {
+    stdio: 'ignore',
   })
-  return server
 }
 
 async function waitForServer(timeoutMs = 30000) {
@@ -219,18 +233,27 @@ function buildAxeScript(settleMs) {
 })()`
 }
 
+/** A hung browser must fail the step, not sit until the job timeout. */
+const AXE_TIMEOUT_MS = 180000
+
 export async function scan({ settleMs = SETTLE_MS } = {}) {
+  progress('starting vite preview')
   const server = startPreview()
   const workdir = mkdtempSync(join(tmpdir(), 'contrast-loop-'))
   const scriptPath = join(workdir, 'axe-run.js')
 
   try {
     await waitForServer()
+    progress(`preview answering on ${PREVIEW_URL}`)
     writeFileSync(scriptPath, buildAxeScript(settleMs))
+    progress('running axe through shot-scraper')
     const raw = execFileSync('bash', [EVIDENCE_SHOT, 'javascript', PREVIEW_URL, '-i', scriptPath], {
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,
+      timeout: AXE_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
     })
+    progress('axe finished')
     const { nodes } = JSON.parse(raw)
     return {
       count: nodes.length,
@@ -238,8 +261,10 @@ export async function scan({ settleMs = SETTLE_MS } = {}) {
       groups: rankTargets(groupByColourPair(nodes)),
     }
   } finally {
-    server.kill()
+    server.kill('SIGKILL')
+    server.unref()
     rmSync(workdir, { recursive: true, force: true })
+    progress('preview stopped')
   }
 }
 
