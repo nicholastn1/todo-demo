@@ -167,6 +167,22 @@ export function compareCounts({ base, head }) {
   }
 }
 
+/**
+ * An iteration that did not lower the count is not publishable, even when the
+ * agent reports success and the tests pass — the scan is the claim.
+ */
+export function madeProgress({ before, after }) {
+  const ok = after < before
+  return {
+    ok,
+    before,
+    after,
+    message: ok
+      ? `contrast violations: ${before} -> ${after}`
+      : `contrast violations: ${before} -> ${after}; the count did not fall, refusing to publish`,
+  }
+}
+
 export function readBaselineNote() {
   return JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).note
 }
@@ -355,6 +371,15 @@ async function main() {
       return
     }
     process.stdout.write(`${JSON.stringify({ found: true, count, target }, null, 2)}\n`)
+    return
+  }
+
+  if (command === 'progressed') {
+    const before = JSON.parse(readFileSync('selection.json', 'utf8')).count
+    const after = JSON.parse(readFileSync('after.json', 'utf8')).count
+    const result = madeProgress({ before, after })
+    process.stdout.write(`${result.message}\n`)
+    if (!result.ok) process.exitCode = 1
     return
   }
 

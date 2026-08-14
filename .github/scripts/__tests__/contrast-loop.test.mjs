@@ -6,6 +6,7 @@ import {
   buildTransfer,
   compareCounts,
   groupByColourPair,
+  madeProgress,
   parseFailure,
   parseNodes,
   rankNodes,
@@ -180,4 +181,12 @@ test('the transfer body carries the target, the drop, and the agent checkbox', (
     foreground: '#cc3311',
     background: '#e7dece',
   })
+})
+
+test('an iteration must lower the count to be publishable', () => {
+  assert.equal(madeProgress({ before: 7, after: 6 }).ok, true)
+  assert.equal(madeProgress({ before: 7, after: 7 }).ok, false)
+  assert.equal(madeProgress({ before: 7, after: 8 }).ok, false)
+  assert.match(madeProgress({ before: 7, after: 7 }).message, /refusing to publish/)
+  assert.match(madeProgress({ before: 7, after: 6 }).message, /7 -> 6/)
 })
