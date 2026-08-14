@@ -20,7 +20,14 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const PREVIEW_PORT = 4173
-const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`
+/**
+ * 127.0.0.1, never 'localhost'. In a container vite binds ::1 while Node's
+ * fetch reaches for IPv4, so the server answers curl and not the scanner —
+ * a 30s timeout that looks like a broken build. Both ends are pinned to IPv4
+ * so the address cannot be interpreted two ways.
+ */
+const PREVIEW_HOST = '127.0.0.1'
+const PREVIEW_URL = `http://${PREVIEW_HOST}:${PREVIEW_PORT}`
 const AXE_SOURCE_PATH = 'node_modules/axe-core/axe.min.js'
 const EVIDENCE_SHOT = '.claude/skills/playwright-evidence/scripts/evidence-shot.sh'
 
@@ -213,7 +220,7 @@ function progress(message) {
  * ignored for the same reason — nothing here reads those pipes.
  */
 function startPreview() {
-  return spawn(process.execPath, [VITE_BIN, 'preview', '--port', String(PREVIEW_PORT), '--strictPort'], {
+  return spawn(process.execPath, [VITE_BIN, 'preview', '--host', PREVIEW_HOST, '--port', String(PREVIEW_PORT), '--strictPort'], {
     stdio: 'ignore',
   })
 }
