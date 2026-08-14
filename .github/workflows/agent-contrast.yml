@@ -1,12 +1,13 @@
 name: Agent - Fix Contrast
 
 on:
-  # 2026-08-14 10:00 America/Sao_Paulo (UTC-3). GitHub cron is UTC, and a
+  # 2026-08-14 09:30 America/Sao_Paulo (UTC-3). GitHub cron is UTC, and a
   # scheduled run is queued, not guaranteed on time — under load it can be
   # minutes late or skipped entirely. Do not depend on this firing at a
-  # precise moment; dispatch it by hand if the timing has to be exact.
+  # precise moment. It is set half an hour before it is needed so a late run
+  # still lands in time; dispatch it by hand if the timing has to be exact.
   schedule:
-    - cron: "0 13 14 8 *"
+    - cron: "30 12 14 8 *"
   workflow_dispatch:
     inputs:
       dry_run:
