@@ -57,7 +57,7 @@ export default function App() {
   }, [])
 
   const completeFromPalette = (todo: Todo) => {
-    toggleTodo(todos, todo.id)
+    setTodos(toggleTodo(todos, todo.id))
   }
 
   const visible = filterTodos(todos, filter)
