@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   ALLOWED_PATHS,
   BASELINE_PATH,
+  buildTransfer,
   compareCounts,
   groupByColourPair,
   parseFailure,
@@ -148,4 +149,35 @@ test('selection now works one element at a time', () => {
 test('an element whose summary cannot be parsed is not selectable', () => {
   assert.deepEqual(parseNodes([{ target: '.x', failureSummary: 'garbage' }]), [])
   assert.equal(selectNode([]), undefined)
+})
+
+test('the transfer body carries the target, the drop, and the agent checkbox', () => {
+  const { prBody, metadata } = buildTransfer({
+    selection: {
+      count: 7,
+      target: {
+        target: '.masthead__kicker',
+        ratio: 3.88,
+        required: 4.5,
+        foreground: '#cc3311',
+        background: '#e7dece',
+      },
+    },
+    after: { count: 5 },
+    baseSha: 'abc1234',
+  })
+
+  assert.match(prBody, /\.masthead__kicker/)
+  assert.match(prBody, /3\.88:1/)
+  assert.match(prBody, /4\.5:1/)
+  assert.match(prBody, /7 → 5/)
+  assert.match(prBody, /- \[x\] This PR was opened by an AI agent/)
+  assert.deepEqual(metadata, {
+    baseSha: 'abc1234',
+    before: 7,
+    after: 5,
+    element: '.masthead__kicker',
+    foreground: '#cc3311',
+    background: '#e7dece',
+  })
 })

@@ -167,6 +167,10 @@ export function compareCounts({ base, head }) {
   }
 }
 
+export function readBaselineNote() {
+  return JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).note
+}
+
 export function readBaseline(raw) {
   const parsed = JSON.parse(raw)
   if (!Number.isInteger(parsed.violations) || parsed.violations < 0) {
@@ -279,6 +283,54 @@ function changedPathsAgainst(base) {
   return [...new Set([...committed.split('\n'), ...working.split('\n')].filter(Boolean))]
 }
 
+
+/**
+ * The pull-request body and metadata for one iteration.
+ *
+ * The workflow used to build these with inline node -e inside YAML, which is
+ * the one place in this repo that gets no test. Two bugs shipped that way
+ * before this moved here.
+ */
+export function buildTransfer({ selection, after, baseSha }) {
+  const t = selection.target
+  const prBody = [
+    '## Summary',
+    '',
+    `Automated contrast-loop iteration: raises one colour pair above its required ratio in \`src/App.css\`.`,
+    '',
+    '## Alvo',
+    '',
+    '| Campo | Valor |',
+    '| --- | --- |',
+    `| Elemento | \`${t.target}\` |`,
+    `| Cores | \`${t.foreground}\` sobre \`${t.background}\` |`,
+    `| Medido | ${t.ratio}:1 |`,
+    `| Exigido | ${t.required}:1 |`,
+    '',
+    '## Resultado',
+    '',
+    `Violações: ${selection.count} → ${after.count}. O baseline foi baixado para ${after.count} no mesmo commit.`,
+    '',
+    'Verificado no job: lint, build, Vitest, testes de script, a fronteira de',
+    'alteração, e um re-scan provando que a contagem caiu.',
+    '',
+    '- [x] This PR was opened by an AI agent',
+    '',
+  ].join('\n')
+
+  return {
+    prBody,
+    metadata: {
+      baseSha,
+      before: selection.count,
+      after: after.count,
+      element: t.target,
+      foreground: t.foreground,
+      background: t.background,
+    },
+  }
+}
+
 // ---------------------------------------------------------------------- CLI
 
 function flag(name, fallback) {
@@ -303,6 +355,22 @@ async function main() {
       return
     }
     process.stdout.write(`${JSON.stringify({ found: true, count, target }, null, 2)}\n`)
+    return
+  }
+
+  if (command === 'transfer') {
+    const dir = flag('dir', '.')
+    const selection = JSON.parse(readFileSync('selection.json', 'utf8'))
+    const after = JSON.parse(readFileSync('after.json', 'utf8'))
+    const { prBody, metadata } = buildTransfer({ selection, after, baseSha: process.env.BASE_SHA })
+
+    // The workflow owns the baseline, not the agent: it is arithmetic on a
+    // number the scan already produced, and a model asked to do it can get it
+    // wrong. Left unlowered, the ratchet reports every later UI branch stale.
+    writeFileSync(BASELINE_PATH, `${JSON.stringify({ violations: after.count, note: readBaselineNote() }, null, 2)}\n`)
+    writeFileSync(join(dir, 'pr-body.md'), prBody)
+    writeFileSync(join(dir, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`)
+    progress(`transfer staged; baseline lowered to ${after.count}`)
     return
   }
 

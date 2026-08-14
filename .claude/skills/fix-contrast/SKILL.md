@@ -16,6 +16,10 @@ and fails the iteration if you cross them:
 
 - **`src/App.css` is the only file you may edit.** Not `App.tsx`, not the
   rules, not the tests, not the workflow.
+- **Do not touch `.github/contrast-baseline.json`.** The workflow lowers it
+  itself, from the count the re-scan measured. It is arithmetic on a number
+  that already exists, and asking a model to redo it only adds a way to get it
+  wrong.
 - **Never suppress instead of fixing.** No `axe` exclusions, no
   `oxlint-disable`, no wrapping the element to hide it from the scanner, no
   removing the element or its text.
