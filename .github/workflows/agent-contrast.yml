@@ -151,50 +151,14 @@ jobs:
           npm test
           npm run test:scripts
           npm run --silent agent:contrast:scan > after.json
-          node -e "
-            const before = require('./selection.json').count;
-            const after = require('./after.json').count;
-            console.log('contrast violations:', before, '->', after);
-            if (after >= before) {
-              console.error('Iteration did not lower the count; refusing to publish.');
-              process.exit(1);
-            }
-          "
+          node .github/scripts/contrast-loop.mjs progressed
 
       - name: Stage the transfer
         if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
         run: |
           mkdir -p "$RUNNER_TEMP/transfer"
-          git diff -- src/App.css > "$RUNNER_TEMP/transfer/change.patch"
-          node -e "
-            const fs = require('fs');
-            const sel = require('./selection.json');
-            const after = require('./after.json');
-            const t = sel.target;
-            fs.writeFileSync(process.env.RUNNER_TEMP + '/transfer/pr-body.md', [
-              '## Summary', '',
-              'Automated contrast-loop iteration: repairs one violating element in \`src/App.css\`.', '',
-              '## Target', '',
-              '| Field | Value |', '| --- | --- |',
-              \`| Foreground | \\\`\${t.foreground}\\\` |\`,
-              \`| Background | \\\`\${t.background}\\\` |\`,
-              \`| Measured | \${t.ratio}:1 |\`,
-              \`| Required | \${t.required}:1 |\`,
-              \`| Element | \\\`\${t.target}\\\` |\`, '',
-              '## Result', '',
-              \`Violations: \${sel.count} -> \${after.count}\`, '',
-              'Verified in the job: lint, build, Vitest, script tests, the change',
-              'boundary (only \`src/App.css\`), and a re-scan proving the count fell.', '',
-              '- [x] This PR was opened by an AI agent',
-            ].join('\n'));
-            fs.writeFileSync(process.env.RUNNER_TEMP + '/transfer/metadata.json', JSON.stringify({
-              baseSha: process.env.BASE_SHA,
-              before: sel.count,
-              after: after.count,
-              foreground: t.foreground,
-              background: t.background,
-            }, null, 2));
-          "
+          node .github/scripts/contrast-loop.mjs transfer --dir "$RUNNER_TEMP/transfer"
+          git diff -- src/App.css .github/contrast-baseline.json > "$RUNNER_TEMP/transfer/change.patch"
 
       - name: Upload the transfer
         if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
@@ -257,13 +221,16 @@ jobs:
           git checkout --quiet "$BASE_SHA"
           git apply --check "$TRANSFER_DIR/change.patch"
           git apply "$TRANSFER_DIR/change.patch"
-          # The patch was produced against src/App.css only; re-assert it here,
-          # where the token can actually write.
+          # Re-assert the boundary here, where the token can actually write.
+          # The patch carries the stylesheet and the lowered baseline; anything
+          # else means the transfer was not what the agent job produced.
           CHANGED=$(git diff --name-only)
-          if [ "$CHANGED" != "src/App.css" ]; then
-            echo "::error::Patch touches unexpected paths: $CHANGED"
-            exit 1
-          fi
+          for FILE in $CHANGED; do
+            case "$FILE" in
+              src/App.css|.github/contrast-baseline.json) ;;
+              *) echo "::error::Patch touches an unexpected path: $FILE"; exit 1 ;;
+            esac
+          done
 
       - name: Commit, push, and open the PR
         env:
@@ -274,7 +241,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add src/App.css
+          git add src/App.css .github/contrast-baseline.json
           git commit -m "Raise contrast on one colour pair
 
           Automated contrast-loop iteration. See the pull request body for the

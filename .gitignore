@@ -25,3 +25,8 @@ dist-ssr
 
 # playwright-evidence deliverables — attached to PRs, never committed
 docs/evidence/
+
+# contrast-loop runtime files — written by the workflow into the workspace,
+# and not part of any iteration's change
+selection.json
+after.json

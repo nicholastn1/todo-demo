@@ -20,7 +20,14 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const PREVIEW_PORT = 4173
-const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`
+/**
+ * 127.0.0.1, never 'localhost'. In a container vite binds ::1 while Node's
+ * fetch reaches for IPv4, so the server answers curl and not the scanner —
+ * a 30s timeout that looks like a broken build. Both ends are pinned to IPv4
+ * so the address cannot be interpreted two ways.
+ */
+const PREVIEW_HOST = '127.0.0.1'
+const PREVIEW_URL = `http://${PREVIEW_HOST}:${PREVIEW_PORT}`
 const AXE_SOURCE_PATH = 'node_modules/axe-core/axe.min.js'
 const EVIDENCE_SHOT = '.claude/skills/playwright-evidence/scripts/evidence-shot.sh'
 
@@ -167,6 +174,26 @@ export function compareCounts({ base, head }) {
   }
 }
 
+/**
+ * An iteration that did not lower the count is not publishable, even when the
+ * agent reports success and the tests pass — the scan is the claim.
+ */
+export function madeProgress({ before, after }) {
+  const ok = after < before
+  return {
+    ok,
+    before,
+    after,
+    message: ok
+      ? `contrast violations: ${before} -> ${after}`
+      : `contrast violations: ${before} -> ${after}; the count did not fall, refusing to publish`,
+  }
+}
+
+export function readBaselineNote() {
+  return JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).note
+}
+
 export function readBaseline(raw) {
   const parsed = JSON.parse(raw)
   if (!Number.isInteger(parsed.violations) || parsed.violations < 0) {
@@ -193,7 +220,7 @@ function progress(message) {
  * ignored for the same reason — nothing here reads those pipes.
  */
 function startPreview() {
-  return spawn(process.execPath, [VITE_BIN, 'preview', '--port', String(PREVIEW_PORT), '--strictPort'], {
+  return spawn(process.execPath, [VITE_BIN, 'preview', '--host', PREVIEW_HOST, '--port', String(PREVIEW_PORT), '--strictPort'], {
     stdio: 'ignore',
   })
 }
@@ -279,6 +306,54 @@ function changedPathsAgainst(base) {
   return [...new Set([...committed.split('\n'), ...working.split('\n')].filter(Boolean))]
 }
 
+
+/**
+ * The pull-request body and metadata for one iteration.
+ *
+ * The workflow used to build these with inline node -e inside YAML, which is
+ * the one place in this repo that gets no test. Two bugs shipped that way
+ * before this moved here.
+ */
+export function buildTransfer({ selection, after, baseSha }) {
+  const t = selection.target
+  const prBody = [
+    '## Summary',
+    '',
+    `Automated contrast-loop iteration: raises one colour pair above its required ratio in \`src/App.css\`.`,
+    '',
+    '## Alvo',
+    '',
+    '| Campo | Valor |',
+    '| --- | --- |',
+    `| Elemento | \`${t.target}\` |`,
+    `| Cores | \`${t.foreground}\` sobre \`${t.background}\` |`,
+    `| Medido | ${t.ratio}:1 |`,
+    `| Exigido | ${t.required}:1 |`,
+    '',
+    '## Resultado',
+    '',
+    `Violações: ${selection.count} → ${after.count}. O baseline foi baixado para ${after.count} no mesmo commit.`,
+    '',
+    'Verificado no job: lint, build, Vitest, testes de script, a fronteira de',
+    'alteração, e um re-scan provando que a contagem caiu.',
+    '',
+    '- [x] This PR was opened by an AI agent',
+    '',
+  ].join('\n')
+
+  return {
+    prBody,
+    metadata: {
+      baseSha,
+      before: selection.count,
+      after: after.count,
+      element: t.target,
+      foreground: t.foreground,
+      background: t.background,
+    },
+  }
+}
+
 // ---------------------------------------------------------------------- CLI
 
 function flag(name, fallback) {
@@ -303,6 +378,31 @@ async function main() {
       return
     }
     process.stdout.write(`${JSON.stringify({ found: true, count, target }, null, 2)}\n`)
+    return
+  }
+
+  if (command === 'progressed') {
+    const before = JSON.parse(readFileSync('selection.json', 'utf8')).count
+    const after = JSON.parse(readFileSync('after.json', 'utf8')).count
+    const result = madeProgress({ before, after })
+    process.stdout.write(`${result.message}\n`)
+    if (!result.ok) process.exitCode = 1
+    return
+  }
+
+  if (command === 'transfer') {
+    const dir = flag('dir', '.')
+    const selection = JSON.parse(readFileSync('selection.json', 'utf8'))
+    const after = JSON.parse(readFileSync('after.json', 'utf8'))
+    const { prBody, metadata } = buildTransfer({ selection, after, baseSha: process.env.BASE_SHA })
+
+    // The workflow owns the baseline, not the agent: it is arithmetic on a
+    // number the scan already produced, and a model asked to do it can get it
+    // wrong. Left unlowered, the ratchet reports every later UI branch stale.
+    writeFileSync(BASELINE_PATH, `${JSON.stringify({ violations: after.count, note: readBaselineNote() }, null, 2)}\n`)
+    writeFileSync(join(dir, 'pr-body.md'), prBody)
+    writeFileSync(join(dir, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`)
+    progress(`transfer staged; baseline lowered to ${after.count}`)
     return
   }
 
