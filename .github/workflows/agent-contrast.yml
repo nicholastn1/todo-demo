@@ -87,6 +87,12 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: npm ci
 
+      # setup-evidence-tooling.sh installs shot-scraper through mise or uv and
+      # refuses when neither is present. GitHub runners ship neither.
+      - name: Install uv
+        if: steps.gate.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+
       - name: Install evidence tooling
         if: steps.gate.outputs.skip != 'true'
         run: bash .claude/skills/playwright-evidence/scripts/setup-evidence-tooling.sh

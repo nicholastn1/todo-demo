@@ -56,6 +56,11 @@ jobs:
           echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
           echo "UI changed: $CHANGED"
 
+      # The tooling installer needs mise or uv; runners ship neither.
+      - name: Install uv
+        if: steps.ui.outputs.changed == 'true'
+        uses: astral-sh/setup-uv@v5
+
       - name: Install evidence tooling
         if: steps.ui.outputs.changed == 'true'
         run: bash .claude/skills/playwright-evidence/scripts/setup-evidence-tooling.sh
