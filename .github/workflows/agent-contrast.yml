@@ -128,6 +128,20 @@ jobs:
           # id-token: write on this job. Handing it the job token instead keeps
           # the agent on the read-only scopes it already has.
           github_token: ${{ github.token }}
+          # The first real iteration ran 13 turns, reported success, and left
+          # the count unchanged with permission_denials_count: 2 — it could
+          # read but not write. Grant exactly what a repair needs: read the
+          # stylesheet, edit it, and run the scan to check its own work.
+          # Bash stays scoped to the loop's own commands; the change boundary
+          # is still enforced afterwards, so this list is convenience, not
+          # the security control.
+          # No spaces anywhere in the list: this string is handed to a CLI, and
+          # Bash(npm run build) would split into three arguments if it is ever
+          # word-split unquoted. Bash is allowed wholesale instead of by
+          # pattern — the real controls are the read-only job scopes, the
+          # change boundary that runs after, and the re-scan that must show a
+          # drop. The tool list is convenience, not the security boundary.
+          claude_args: "--allowedTools Read,Grep,Glob,Edit,Write,Bash"
           prompt: |
             Use the fix-contrast skill to repair exactly one colour-contrast
             violation. The selected target is in selection.json at the repo root.
