@@ -8,6 +8,14 @@ export type Todo = {
 
 export type Filter = 'all' | 'pending' | 'done' | 'archived'
 
+/** One home for the words the UI shows for a status — the row stamp, the
+ * command palette's search, and anything else that names one. */
+export const STATUS_LABEL: Record<Status, string> = {
+  pending: 'aberta',
+  done: 'concluída',
+  archived: 'arquivada',
+}
+
 export const seed: Todo[] = [
   { id: 1, title: 'Escrever documentação da API', status: 'pending' },
   { id: 2, title: 'Revisar proposta de arquitetura', status: 'pending' },

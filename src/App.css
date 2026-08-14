@@ -546,3 +546,193 @@ body {
     transition: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ palette */
+
+.masthead__palette {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.875rem;
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: transparent;
+  border: 2px solid var(--ink);
+  cursor: pointer;
+}
+
+.masthead__palette:hover {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.masthead__palette kbd {
+  font: inherit;
+  font-size: 0.875rem;
+  opacity: 0.75;
+}
+
+.palette__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  /* Without this the panel stretches to the backdrop's full height — flex
+     children stretch on the cross axis by default — and sits with dead space
+     under its own footer. */
+  align-items: flex-start;
+  padding-top: 12vh;
+  /* Flat, not blurred: a backdrop-filter is expensive to encode and reads as
+     mush once a video call has compressed it. */
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.palette {
+  width: min(38rem, 92vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: var(--rule) solid var(--ink);
+  box-shadow: 8px 8px 0 var(--ink);
+}
+
+.palette__input {
+  padding: 1rem 1.125rem;
+  font: inherit;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--paper);
+  border: none;
+  border-bottom: var(--rule) solid var(--ink);
+}
+
+.palette__input:focus {
+  outline: none;
+}
+
+.palette__input::placeholder {
+  color: var(--ink-soft);
+}
+
+.palette__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.palette__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.8125rem 1.125rem;
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid color-mix(in srgb, var(--ink) 15%, transparent);
+  cursor: pointer;
+}
+
+.palette__item[aria-selected='true'] {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.palette__hint {
+  flex: none;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.palette__item[aria-selected='true'] .palette__hint {
+  color: var(--paper);
+}
+
+.palette__empty {
+  padding: 1.5rem 1.125rem;
+  font-size: 1.0625rem;
+  color: var(--ink-soft);
+}
+
+.palette__footer {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.75rem 1.125rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--paper-deep);
+  border-top: var(--rule) solid var(--ink);
+}
+
+/* --------------------------------------------------------------- scrollbars */
+
+/* Flat and square, like everything else here: no rounding, no gradient, no
+   overlay fade. Always visible on purpose — an overlay scrollbar that only
+   appears mid-gesture is invisible to someone watching a shared screen. */
+/* Firefox only. Setting scrollbar-width in Chromium makes it ignore the
+   ::-webkit-scrollbar rules below, so the two cannot both be declared. */
+@supports not selector(::-webkit-scrollbar) {
+  .palette__list,
+  .ledger,
+  .rail {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink) var(--paper-deep);
+  }
+}
+
+.palette__list::-webkit-scrollbar,
+.ledger::-webkit-scrollbar,
+.rail::-webkit-scrollbar {
+  width: 14px;
+}
+
+.palette__list::-webkit-scrollbar-track,
+.ledger::-webkit-scrollbar-track,
+.rail::-webkit-scrollbar-track {
+  background: var(--paper-deep);
+  border-left: 2px solid var(--ink);
+}
+
+.palette__list::-webkit-scrollbar-thumb,
+.ledger::-webkit-scrollbar-thumb,
+.rail::-webkit-scrollbar-thumb {
+  background: var(--ink);
+  /* The border is the gutter: it insets the thumb without rounding it. */
+  border: 3px solid var(--paper-deep);
+  border-left-width: 5px;
+}
+
+.palette__list::-webkit-scrollbar-thumb:hover,
+.ledger::-webkit-scrollbar-thumb:hover,
+.rail::-webkit-scrollbar-thumb:hover {
+  background: var(--mark);
+}
+
+/* ------------------------------------------------------- palette focus ring */
+
+.masthead__palette:focus-visible,
+.palette__input:focus-visible,
+.palette__item:focus-visible {
+  outline: var(--rule) solid var(--mark);
+  outline-offset: -3px;
+}

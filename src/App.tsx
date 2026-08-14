@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import '@fontsource-variable/fraunces'
 import '@fontsource-variable/archivo'
+import CommandPalette from './CommandPalette'
 import {
+  STATUS_LABEL,
   addTodo,
   archiveDone,
   countBy,
@@ -9,6 +11,7 @@ import {
   seed,
   toggleTodo,
   type Filter,
+  type Todo,
 } from './todos'
 import './App.css'
 
@@ -41,11 +44,36 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [])
 
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const completeFromPalette = (todo: Todo) => {
+    toggleTodo(todos, todo.id)
+  }
+
   const visible = filterTodos(todos, filter)
   const doneCount = countBy(todos, 'done')
 
   return (
     <div className="page">
+      <CommandPalette
+        todos={todos}
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onFilter={(item) => setFilter(item.filter)}
+        onArchive={() => setTodos(archiveDone(todos))}
+        onComplete={completeFromPalette}
+      />
+
       <aside className="rail">
         <header className="masthead">
           <p className="masthead__kicker">Registro de tarefas</p>
@@ -57,6 +85,10 @@ export default function App() {
             <span className="masthead__dot" aria-hidden="true" />
             <span>{todos.length} registros</span>
           </p>
+
+          <button className="masthead__palette" onClick={() => setPaletteOpen(true)}>
+            Buscar e comandar <kbd>⌘K</kbd>
+          </button>
         </header>
 
         <form
@@ -147,11 +179,7 @@ export default function App() {
                 <span className="ledger__title">{t.title}</span>
               </label>
               <span className={`ledger__stamp ledger__stamp--${t.status}`}>
-                {t.status === 'pending'
-                  ? 'aberta'
-                  : t.status === 'done'
-                    ? 'concluída'
-                    : 'arquivada'}
+                {STATUS_LABEL[t.status]}
               </span>
             </li>
           ))}
