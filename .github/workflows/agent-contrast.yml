@@ -1,0 +1,275 @@
+name: Agent - Fix Contrast
+
+on:
+  # 2026-08-14 10:00 America/Sao_Paulo (UTC-3). GitHub cron is UTC, and a
+  # scheduled run is queued, not guaranteed on time — under load it can be
+  # minutes late or skipped entirely. Do not depend on this firing at a
+  # precise moment; dispatch it by hand if the timing has to be exact.
+  schedule:
+    - cron: "0 13 14 8 *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Scan and select only; do not run the agent or open a PR.
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: agent-contrast
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  fix-contrast:
+    name: Fix one contrast target
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # SECURITY: the agent runs in this job and receives this token. Every scope
+    # here stays read-only; the write scopes live only in publish-iteration.
+    # `pull-requests: read` is what the one-open-PR gate needs.
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      LOOP_BRANCH_PREFIX: agent/contrast-
+      BASE_BRANCH: main
+    outputs:
+      skip: ${{ steps.gate.outputs.skip }}
+      found: ${{ steps.target.outputs.found }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # One open loop PR at a time. Without this the loop stacks conflicting
+      # branches that all edit the same stylesheet.
+      - name: Gate on an existing loop PR
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+            --json headRefName --jq "[.[] | select(.headRefName | startswith(\"$LOOP_BRANCH_PREFIX\"))] | length")
+          if [ "$OPEN" != "0" ]; then
+            echo "::notice::A loop PR is already open; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fail here with a sentence a human can act on, rather than deep inside
+      # the action with an auth error. Skipped on a dry run, which never calls
+      # the agent and therefore needs no credential.
+      - name: Require agent credentials
+        if: ${{ steps.gate.outputs.skip != 'true' && !inputs.dry_run }}
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN is not set on this repository."
+            echo "::error::Generate one with 'claude setup-token' and add it with:"
+            echo "::error::  gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo \$GITHUB_REPOSITORY"
+            echo "::error::Or re-run this workflow with dry_run enabled to exercise"
+            echo "::error::the sensor and selector without the agent."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        if: steps.gate.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Install evidence tooling
+        if: steps.gate.outputs.skip != 'true'
+        run: bash .claude/skills/playwright-evidence/scripts/setup-evidence-tooling.sh
+
+      - name: Build
+        if: steps.gate.outputs.skip != 'true'
+        run: npm run build
+
+      - name: Select one target
+        id: target
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          npm run --silent agent:contrast:select > selection.json
+          cat selection.json
+          FOUND=$(node -p "require('./selection.json').found === true")
+          echo "found=$FOUND" >> "$GITHUB_OUTPUT"
+          if [ "$FOUND" != "true" ]; then
+            echo "::notice::Backlog is empty — no contrast violations remain."
+          fi
+
+      - name: Record the base commit
+        if: steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true'
+        run: echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Run one bounded iteration
+        if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Use the fix-contrast skill to repair exactly one colour-contrast
+            violation. The selected target is in selection.json at the repo root.
+            Obey the skill's hard boundaries: edit only src/App.css, never
+            suppress, never commit or push. Report SKIPPED rather than force an
+            unsound repair.
+
+      # The boundary runs whatever the agent did or did not do. A dirty tree
+      # outside src/App.css fails the iteration here, before anything is staged
+      # for the job that can write.
+      - name: Enforce the change boundary
+        if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
+        run: node .github/scripts/contrast-loop.mjs boundary --base "$BASE_SHA"
+
+      - name: Verify the iteration
+        if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
+        run: |
+          npm run lint
+          npm run build
+          npm test
+          npm run test:scripts
+          npm run --silent agent:contrast:scan > after.json
+          node -e "
+            const before = require('./selection.json').count;
+            const after = require('./after.json').count;
+            console.log('contrast violations:', before, '->', after);
+            if (after >= before) {
+              console.error('Iteration did not lower the count; refusing to publish.');
+              process.exit(1);
+            }
+          "
+
+      - name: Stage the transfer
+        if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/transfer"
+          git diff -- src/App.css > "$RUNNER_TEMP/transfer/change.patch"
+          node -e "
+            const fs = require('fs');
+            const sel = require('./selection.json');
+            const after = require('./after.json');
+            const t = sel.target;
+            fs.writeFileSync(process.env.RUNNER_TEMP + '/transfer/pr-body.md', [
+              '## Summary', '',
+              'Automated contrast-loop iteration: repairs one violating element in \`src/App.css\`.', '',
+              '## Target', '',
+              '| Field | Value |', '| --- | --- |',
+              \`| Foreground | \\\`\${t.foreground}\\\` |\`,
+              \`| Background | \\\`\${t.background}\\\` |\`,
+              \`| Measured | \${t.ratio}:1 |\`,
+              \`| Required | \${t.required}:1 |\`,
+              \`| Element | \\\`\${t.target}\\\` |\`, '',
+              '## Result', '',
+              \`Violations: \${sel.count} -> \${after.count}\`, '',
+              'Verified in the job: lint, build, Vitest, script tests, the change',
+              'boundary (only \`src/App.css\`), and a re-scan proving the count fell.', '',
+              '- [x] This PR was opened by an AI agent',
+            ].join('\n'));
+            fs.writeFileSync(process.env.RUNNER_TEMP + '/transfer/metadata.json', JSON.stringify({
+              baseSha: process.env.BASE_SHA,
+              before: sel.count,
+              after: after.count,
+              foreground: t.foreground,
+              background: t.background,
+            }, null, 2));
+          "
+
+      - name: Upload the transfer
+        if: ${{ steps.gate.outputs.skip != 'true' && steps.target.outputs.found == 'true' && !inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-contrast-transfer-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/transfer
+          if-no-files-found: error
+
+  publish-iteration:
+    name: Publish the iteration pull request
+    needs: fix-contrast
+    # A skipped gate and an empty backlog are both successful no-ops.
+    if: ${{ needs.fix-contrast.outputs.skip != 'true' && needs.fix-contrast.outputs.found == 'true' && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only write scopes in this workflow. The agent never runs in this job,
+    # and no repository code is executed here — only the patch it produced.
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      LOOP_BRANCH_PREFIX: agent/contrast-
+      BASE_BRANCH: main
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-contrast-transfer-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/transfer
+
+      # The transfer is the only thing crossing the privilege boundary, so it
+      # is validated rather than trusted: required files present, nothing else.
+      - name: Validate the transfer
+        env:
+          TRANSFER_DIR: ${{ runner.temp }}/transfer
+        run: |
+          for REQUIRED in change.patch pr-body.md metadata.json; do
+            if [ ! -s "$TRANSFER_DIR/$REQUIRED" ]; then
+              echo "::error::Transfer is missing $REQUIRED."
+              exit 1
+            fi
+          done
+          UNEXPECTED=$(find "$TRANSFER_DIR" -mindepth 1 \
+            ! -name change.patch ! -name pr-body.md ! -name metadata.json)
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::Transfer carries unexpected files: $UNEXPECTED"
+            exit 1
+          fi
+
+      - name: Apply the patch onto the pinned base
+        env:
+          TRANSFER_DIR: ${{ runner.temp }}/transfer
+        run: |
+          BASE_SHA=$(node -p "require('$TRANSFER_DIR/metadata.json').baseSha")
+          git checkout --quiet "$BASE_SHA"
+          git apply --check "$TRANSFER_DIR/change.patch"
+          git apply "$TRANSFER_DIR/change.patch"
+          # The patch was produced against src/App.css only; re-assert it here,
+          # where the token can actually write.
+          CHANGED=$(git diff --name-only)
+          if [ "$CHANGED" != "src/App.css" ]; then
+            echo "::error::Patch touches unexpected paths: $CHANGED"
+            exit 1
+          fi
+
+      - name: Commit, push, and open the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRANSFER_DIR: ${{ runner.temp }}/transfer
+        run: |
+          BRANCH="${LOOP_BRANCH_PREFIX}$(date -u +%Y%m%d-%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add src/App.css
+          git commit -m "Raise contrast on one colour pair
+
+          Automated contrast-loop iteration. See the pull request body for the
+          target, the measured ratios, and the verification that ran."
+          git push -u origin "$BRANCH"
+          # @me here would be github-actions[bot], which cannot hold an
+          # assignment. The repository owner is the human who has to review it.
+          gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE_BRANCH" --head "$BRANCH" \
+            --assignee "$GITHUB_REPOSITORY_OWNER" \
+            --title "Raise contrast on one colour pair" \
+            --body-file "$TRANSFER_DIR/pr-body.md"

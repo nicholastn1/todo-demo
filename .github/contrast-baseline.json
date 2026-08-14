@@ -1,0 +1,4 @@
+{
+  "violations": 7,
+  "note": "Colour-contrast nodes reported by npm run agent:contrast:scan. This number may only go down. The contrast loop lowers it as it drains the backlog; raising it is not a fix."
+}
