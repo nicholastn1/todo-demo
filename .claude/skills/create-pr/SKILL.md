@@ -118,6 +118,14 @@ noise is what makes a description stop being read.
 
 ### Write
 
+- **An opening summary: one or two sentences saying what this change is.**
+  Required, and first. A reader who lands on a table of eleven files with no
+  orientation has to reverse-engineer the point of the PR from its parts.
+  Say what the change delivers, in plain terms — "a control loop that finds
+  and repairs colour-contrast violations, plus a stop hook that blocks
+  finishing while tests fail". This is *what it is*, not *why it was chosen*;
+  the moment it starts defending a decision it has become the essay this
+  section exists to prevent.
 - **What each file does**, as a table. One row per file, one line per row.
 - **The commands the change adds or changes**, as a table.
 - **Facts about the current state** — counts, selected targets, what is
@@ -166,6 +174,10 @@ verification block too; its numbers move.
 ### Template
 
 ```markdown
+## Summary
+
+<one or two sentences: what this change is>
+
 ## O que entra
 
 | Arquivo | Função |
@@ -232,13 +244,20 @@ reads only the transcript's own API usage.
 
 ```bash
 gh pr create --repo nicholastn1/todo-demo --base main \
-  --head "$(git branch --show-current)" \
+  --head "$(git branch --show-current)" --assignee @me \
   --title "<title>" --body-file /tmp/todo-evidence/pr-body.md
 ```
 
 Prefer `--body-file` over `--body "$(...)"`: the body contains backticks and
 `$` from pasted log output, and a heredoc through a shell argument will mangle
 some of it.
+
+**Always set `--assignee`.** An unassigned PR has no one it is waiting on, and
+in a repo with automation opening PRs alongside people, "who owns this" stops
+being obvious. `@me` resolves to whoever's token is in use, which is the human
+running the skill. Automation that opens a PR cannot use `@me` — the bot cannot
+hold an assignment — so it assigns the repository owner instead; the contrast
+workflow does this with `$GITHUB_REPOSITORY_OWNER`.
 
 ## Step 8 — Confirm
 

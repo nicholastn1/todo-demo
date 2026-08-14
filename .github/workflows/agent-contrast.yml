@@ -267,6 +267,9 @@ jobs:
           Automated contrast-loop iteration. See the pull request body for the
           target, the measured ratios, and the verification that ran."
           git push -u origin "$BRANCH"
+          # @me here would be github-actions[bot], which cannot hold an
+          # assignment. The repository owner is the human who has to review it.
           gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE_BRANCH" --head "$BRANCH" \
+            --assignee "$GITHUB_REPOSITORY_OWNER" \
             --title "Raise contrast on one colour pair" \
             --body-file "$TRANSFER_DIR/pr-body.md"
